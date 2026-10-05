@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Family Expense Tracker</title>
+<meta name="description" content="Free family income & expense tracker with budgets, savings goals and monthly reports. Works offline, syncs via Google Sheets." />
+<meta name="theme-color" content="#4f46e5" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="./icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="FamExpenses" />
+<style>
+/* critical splash to avoid white flash */
+body{background:#f1f5f9}
+</style>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">💰 FamExpenses</div>
+  <div class="profile-switch" role="tablist" aria-label="Who is adding?">
+    <button id="profileMe" class="pill active">Me</button>
+    <button id="profileWife" class="pill">Wife</button>
+  </div>
+</header>
+
+<div class="syncbar" id="syncBar">📴 Offline-first • data saved on this phone <span id="syncDot"></span></div>
+
+<main>
+  <!-- HOME -->
+  <section id="tab-home" class="tab active">
+    <div class="card row-between">
+      <button id="prevMonth" class="btn ghost">‹</button>
+      <div class="month-label"><strong id="monthLabel"></strong><div class="muted small" id="monthSub"></div></div>
+      <button id="nextMonth" class="btn ghost">›</button>
+    </div>
+
+    <div class="grid3">
+      <div class="card stat income"><div class="muted">Income</div><div class="big" id="sumIncome">₹0</div><div class="small muted" id="splitIncome"></div></div>
+      <div class="card stat expense"><div class="muted">Expense</div><div class="big" id="sumExpense">₹0</div><div class="small muted" id="splitExpense"></div></div>
+      <div class="card stat balance"><div class="muted">Balance</div><div class="big" id="sumBalance">₹0</div><div class="small muted" id="savingsRate"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="row-between"><h3>💡 Smart tips to save</h3><button class="btn ghost small" id="refreshTips">↻</button></div>
+      <ul id="tipsList" class="tips"></ul>
+    </div>
+
+    <div class="card">
+      <h3>Spending by category</h3>
+      <div id="catBars"></div>
+    </div>
+
+    <div class="card">
+      <h3>Daily trend</h3>
+      <canvas id="trendChart" height="120"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="row-between"><h3>Recent</h3><button class="btn ghost small" id="gotoAdd">+ Add</button></div>
+      <div id="recentList" class="list"></div>
+    </div>
+  </section>
+
+  <!-- ADD / LIST -->
+  <section id="tab-add" class="tab">
+    <div class="card">
+      <div class="type-toggle">
+        <button id="typeExpense" class="type active-expense">Expense</button>
+        <button id="typeIncome" class="type">Income</button>
+      </div>
+      <form id="entryForm">
+        <input type="hidden" id="editId" />
+        <label>Amount (₹) <input id="fAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 500" required /></label>
+        <div class="grid2">
+          <label>Date <input id="fDate" type="date" required /></label>
+          <label>Category <select id="fCategory"></select></label>
+        </div>
+        <div class="grid2">
+          <label>Paid via <select id="fMode"><option>UPI</option><option>Cash</option><option>Card</option><option>Bank</option></select></label>
+          <label>Added by <select id="fBy"><option>Me</option><option>Wife</option></select></label>
+        </div>
+        <label>Note <input id="fNote" type="text" maxlength="120" placeholder="e.g. groceries at More" /></label>
+        <div class="row">
+          <button type="submit" class="btn primary" id="saveBtn">Save</button>
+          <button type="button" class="btn ghost" id="cancelEdit" hidden>Cancel</button>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <div class="row filters">
+        <input id="q" placeholder="Search note/category…" />
+        <select id="filterBy"><option value="">Me + Wife</option><option>Me</option><option>Wife</option></select>
+        <select id="filterType"><option value="">All</option><option value="expense">Expense</option><option value="income">Income</option></select>
+      </div>
+      <div id="allList" class="list"></div>
+    </div>
+  </section>
+
+  <!-- BUDGETS -->
+  <section id="tab-budget" class="tab">
+    <div class="card">
+      <h3>Monthly budgets per category</h3>
+      <p class="muted small">Set a limit. We warn at 80% and 100%. Same limits apply every month (V1).</p>
+      <div id="budgetList"></div>
+      <div class="row">
+        <select id="newBudgetCat"></select>
+        <input id="newBudgetAmt" type="number" min="1" placeholder="₹ limit" />
+        <button class="btn primary" id="addBudget">Set</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GOALS -->
+  <section id="tab-goals" class="tab">
+    <div class="card">
+      <h3>Savings goals</h3>
+      <div id="goalsList"></div>
+      <div class="goal-form">
+        <input id="gName" placeholder="Goal name e.g. Emergency fund" />
+        <input id="gTarget" type="number" min="1" placeholder="Target ₹" />
+        <input id="gDeadline" type="month" />
+        <button class="btn primary" id="addGoal">Add goal</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPORT / MORE -->
+  <section id="tab-more" class="tab">
+    <div class="card">
+      <h3>📊 Month-end report</h3>
+      <div id="reportBox"></div>
+      <div class="row wrap">
+        <button class="btn" id="exportCsv">⬇ CSV</button>
+        <button class="btn" id="shareWa">↗ WhatsApp</button>
+        <button class="btn" id="printBtn">🖨 Print / PDF</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🔄 Shared sync (free via Google Sheets)</h3>
+      <p class="muted small">Both phones → same Google Sheet → auto-sync like Excel. Setup takes 5 min, once. <a href="./apps-script/Code.gs" target="_blank">Get Code.gs</a> • Full steps in README.</p>
+      <label>Apps Script Web App URL <input id="sUrl" placeholder="https://script.google.com/macros/s/…/exec" /></label>
+      <label>Family secret (any word, same on both phones) <input id="sSecret" placeholder="e.g. sandy-family-2026" /></label>
+      <div class="row wrap">
+        <button class="btn primary" id="syncNow">Sync now</button>
+        <button class="btn ghost" id="saveSync">Save settings</button>
+      </div>
+      <div class="muted small" id="syncStatus"></div>
+    </div>
+    <div class="card">
+      <h3>⚙️ Data</h3>
+      <div class="row wrap">
+        <button class="btn" id="exportJson">Backup JSON</button>
+        <label class="btn">Restore <input type="file" id="importJson" accept=".json" hidden /></label>
+        <button class="btn danger" id="wipe">Erase all</button>
+      </div>
+      <p class="muted small">Rename Me/Wife to your names:</p>
+      <div class="row">
+        <input id="nameMe" placeholder="Me label" /><input id="nameWife" placeholder="Wife label" />
+        <button class="btn" id="saveNames">Save</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="bottomnav">
+  <button data-tab="home" class="active">🏠<span>Home</span></button>
+  <button data-tab="add">➕<span>Add</span></button>
+  <button data-tab="budget">🎯<span>Budget</span></button>
+  <button data-tab="goals">🐷<span>Goals</span></button>
+  <button data-tab="more">⋯<span>More</span></button>
+</nav>
+
+<script src="./app.js"></script>
+<script>
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>

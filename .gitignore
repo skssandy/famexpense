@@ -1,0 +1,6 @@
+# personal - nothing secret in repo (data lives in your Google Sheet + phones)
+.DS_Store
+Thumbs.db
+*.backup.json
+famexp-backup.json
+.vscode/
